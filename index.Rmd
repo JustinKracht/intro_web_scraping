@@ -1,0 +1,296 @@
+---
+title: "Web scraping with R"
+description: |
+  An Introduction Using R and `rvest`.
+author:
+  - name: Justin Kracht
+    affiliation: University of Minnesota, Department of Psychology
+date: "January 2020"
+output: distill::distill_article
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = FALSE)
+```
+
+```{css, echo=FALSE}
+.spoiler {
+  visibility: hidden;
+}
+
+.spoiler::before {
+  visibility: visible;
+  content: "Spoiler alert! Hover me to see the answer."
+}
+
+.spoiler:hover {
+  visibility: visible;
+}
+
+.spoiler:hover::before {
+  display: none;
+}
+```
+
+## Aims of this presentation
+
+- Introduce you to basic web scraping tools
+  - The [`rvest` package](http://rvest.tidyverse.org/)
+  - Regular expressions
+  - CSS selectors
+  - Browser tools
+- Provide resources I've found useful
+- Get you thinking about how you can use web scraping for your own projects!
+
+## What is web scraping?
+
+> “[W]eb scraping is the practice of gathering data through any means other than a program interacting with an API (or, obviously, through a human using a web browser). This is most commonly accomplished by writing an automated program that queries a web server, requests data (usually in the form of HTML and other files that compose web pages), and then parses that data to extract needed information."
+>
+> --- Ryan Mitchell,  *Web Scraping with Python*
+
+## Things to check before you begin
+
+- Will you be violating the terms of service?
+  - Check robots.txt (e.g., [www.wikipedia.org/robots.txt](www.wikipedia.org/robots.txt))
+  - Go slow and don't cause problems (see also [the `polite` package](https://github.com/dmi3kno/polite))
+- Is there an API that will let you access the data you need?
+  - Some websites have APIs (application programming interfaces) that make data more efficiently available.
+- Has someone already done the work for you? Google it!
+
+## Basic web scraping steps
+
+Once we've identified the URL of the page we'd like to scrape, the process of extracting data follows three general steps:
+
+1. Fetch the site's HTML source code
+2. From the HTML source code, identify and select the element(s) containing the data you want to extract
+3. From the element, extract and format the data you want
+
+Here's a simple example adapted from the `rvest` documentation:
+
+```{r}
+library(rvest)
+# Fetch the html source code for the imbd page for The Lego Movie
+lego_movie <- read_html("http://www.imdb.com/title/tt1490017/")
+
+# Extract the average user rating
+rating <- lego_movie %>%          # Start with the html source 
+  html_nodes("strong span") %>%   # Use a CSS selector to find the right section
+  html_text() %>%                 # Extract text from the selected section
+  as.numeric()                    # Format the selected text as numeric
+rating
+```
+
+## A cheesy example `r emo::ji("cheese")`
+
+[Cheese.com](www.cheese.com) is a fantastic website with a database of 1,829 varieties of cheese. They're also active on twitter!
+
+<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Cheese 🧀of the day: RICOTTA DI BUFALA🧀<a href="https://twitter.com/hashtag/RICOTTADIBUFALA?src=hash&amp;ref_src=twsrc%5Etfw">#RICOTTADIBUFALA</a>🧀 <a href="https://twitter.com/hashtag/PasteurizedCheese?src=hash&amp;ref_src=twsrc%5Etfw">#PasteurizedCheese</a> <a href="https://twitter.com/hashtag/WaterBuffaloMilk?src=hash&amp;ref_src=twsrc%5Etfw">#WaterBuffaloMilk</a>🐃 <a href="https://twitter.com/hashtag/ItalianCheese?src=hash&amp;ref_src=twsrc%5Etfw">#ItalianCheese</a> <a href="https://twitter.com/hashtag/FreshFirmCheese?src=hash&amp;ref_src=twsrc%5Etfw">#FreshFirmCheese</a> <a href="https://twitter.com/hashtag/CreamyTexture?src=hash&amp;ref_src=twsrc%5Etfw">#CreamyTexture</a> <a href="https://t.co/V6ur79q4xL">https://t.co/V6ur79q4xL</a> <a href="https://t.co/zPayyscPOb">pic.twitter.com/zPayyscPOb</a></p>&mdash; Cheesedotcom (@Cheesedotcom) <a href="https://twitter.com/Cheesedotcom/status/1207912723717083136?ref_src=twsrc%5Etfw">December 20, 2019</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script> 
+
+In the rest of the presentation, I'll step through how to scrape their website to extract some important cheese data for analysis.^[Credit for this example goes to Dmytro Perepolkin, author of the `polite` package]
+
+## Step 1: Extract HTML source code
+
+We would eventually like to scrape data on all of the cheeses in the cheese.com database. However, it's often helpful to start from the specific and then generalize from there.
+
+<aside>
+```{r brunost-med-waffler, fig.cap="Brunost with waffles, delicious. CC Image courtesy of Like_the_Grand_Canyon on Flickr", echo = FALSE}
+knitr::include_graphics(path = "images/brunost_med_waffler.jpg")
+```
+</aside>
+
+Let's start by extracting data from the page for brunost, a very tasty Norwegian cheese made from cow and goat's milk.^["In January 2013, a lorry carrying 27 tonnes of brunost caught fire in the 3.5 km (2.2 mi) long Bratli tunnel in Tysfjord. The temperature increased so much that the Brunost caught fire, the fats and sugars in the cheese fuelling the blaze, preventing firefighters from approaching it until four days later, when most of it had burned out. The tunnel was severely damaged, and was closed for repair for several months afterwards. The accident was widely publicized in international media, and was dubbed 'the goat cheese fire'." --- Wikipedia contributors. (2019, December 26). Brunost. In Wikipedia, The Free Encyclopedia. Retrieved 20:35, December 26, 2019, from https://en.wikipedia.org/w/index.php?title=Brunost&oldid=932557297] It appears that the page for any particular cheese can be found by navigating to `https://www.cheese.com/*cheese name*/`, so we'll read the HTML for `https://www.cheese.com/brunost/`:
+
+```{r read_brunost}
+brunost_url <- "https://www.cheese.com/brunost"
+(brunost_html <- read_html(brunost_url))
+```
+
+## Step 2: Select the target element
+
+HTML elements have properties (e.g., type, class, id, attribute). For example, the list of cheese facts that appear alongside the photo are contained an unordered list (`ul`) element with the class `"summary-points"`. The first list item (`li`) contains a paragraph (`p`) element that tells what kind of milk the cheese is made from.
+
+```{html example-html, eval = FALSE}
+<ul class="summary-points">
+    <li><i class="fa fa-flask" aria-hidden="true"></i>
+        <p>Made from pasteurized or unpasteurized <a href="/by_milk/?m=cow">cow</a>'s 
+          and <a href="/by_milk/?m=goat">goat</a>'s milk</p>
+    </li>
+    ...
+</ul>
+```
+
+We can use this structure to create rules about what to extract from the page source.
+
+### CSS Selectors
+
+CSS selectors are patterns used to select HTML elements. I won't cover the entire variety of CSS selectors, but luckily you can learn (almost) everything you need to know about CSS selectors by [playing this game](https://flukeout.github.io/) or by consulting [this reference page](https://www.w3schools.com/cssref/css_selectors.asp).
+
+__Exercise__: Complete the first ten levels of [CSS Diner](https://flukeout.github.io/).
+
+Let's try to select the entire unordered list element with the class `summary-points` (there's only one). The CSS selector `ul.summary-points` should do this for us.
+
+```{r select_summary-points}
+brunost_html %>%                            # start w/ the html we read in earlier
+  html_nodes(css = "ul.summary-points") %>% # extract element w/ CSS selector
+  html_text()                               # extract text from the element
+```
+
+This gets us what we want (the types of milk used to make the cheese) but much else besides. We need to refine our selection to separate the curds from the whey, so to speak.^[Usually we'd want to keep the curd, but brunost is made from whey.]
+
+We can see that the words we want to extract (cow and goat) are contained in hyperlink elements (`a`) within the list item element with two classes, `fa` and `fa-flask`. The second class seems to be the more exclusive of the two, so we'll try to  select these hyperlink elements using `.fa-flask + p a`. We can read this as "select every `a` element in the first `p` element after an element with class `fa-flask`.
+
+```{r select_cheese_milk_types}
+brunost_html %>%
+  html_nodes(css = ".fa-flask + p a") %>%
+  html_text()
+```
+
+It worked! If it seems difficult to come up with the right CSS selector, not to worry --- there's an excellent tool called (Selector Gadget)[https://selectorgadget.com/] that will create CSS selectors for you.
+
+![Using the Selector Gadget Chrome extension to generate a CSS selector.](images/selector_gadget.gif)
+
+If you don't want to use selector gadget, you can always take a look at the HTML source and try to come up with your own selector. In Chrome, you can jump to the element you're interested in by right-clicking anywhere on the page, click "Inspect", click the "Select element" icon in the upper-left corner of the pane that appears, and then hover over or click on the element you're interested in. In Firefox, you can do the same by right-clicking anywhere on the page and clicking "Inspect Element".
+
+![Inspect element (Firefox)](images/firefox_inspect.gif)
+
+__Exercise__: Modify the code in the previous code chunk to extract the countries of origin. Use Selector Gadget to generate an appropriate CSS selector.
+
+__Solution__:
+
+[`brunost_html %>%`  
+   `html_nodes(css = ".summary-points li:nth-child(2) a") %>%`  
+   `html_text()`]{.spoiler}
+   
+## Step 3: Extract and format data from an element
+
+So far, the elements we've selected have contained only the information (text) that we wanted. How fortunate! We won't always be so lucky. For example, suppose we'd like to extract the fat content of brunost.
+
+We can create a CSS selector easily enough by modifying the selector from the last exercise. Since the fat content appears in the fourth list element of the summary points list, we can just change the `nth-child` selector to select the list element that's the fourth child of its parent and extract the `p` element it contains.
+
+```{r fat-content-attempt}
+(fat_content <- brunost_html %>%
+  html_nodes(css = ".summary-points li:nth-child(4) p") %>%
+  html_text())
+```
+
+That looks good except that we don't want the entire string, only the number of grams of fat per 100g of cheese (27). We can use a *regular expression* to extract only the text we want from the string.
+
+### Regular expressions (regex)
+
+> A regular expression, regex or regexp (sometimes called a rational expression) is a sequence of characters that define a search pattern. Usually such patterns are used by string searching algorithms for "find" or "find and replace" operations on strings, or for input validation.^[Wikipedia contributors. (2019, December 27). Regular expression. In Wikipedia, The Free Encyclopedia. Retrieved 14:35, December 27, 2019, from https://en.wikipedia.org/w/index.php?title=Regular_expression&oldid=932634946]
+
+Regular expressions, like CSS selectors, have a bit of a learning curve but are really not too bad once you get used to them. There are also many good resources to help you learn. [RegexOne](https://regexone.com/) has an interactive tutorial that will teach you most of what you'll ever need to know about regular expressions. You can hone your regex skills playing [regex crossword](https://regexcrossword.com/challenges/beginner/puzzles/1)! Another good resource is [regexr.com](https://regexr.com/), a website that lets you interactively build a regular expression. I use this regularly to test my regular expressions before I use them. It also has some handy reference resources.
+
+Our example is relatively straightforward; we want to extract the number that appears directly after the colon in "Fat content:". Therefore, we want our regular expressions to capture any digits that appear after (but do not include) the colon. We also need to be sure that we don't capture the "100" in "100g".
+
+I like to use the `stringr` package for string manipulation. Incidentally, the second page of the [`stringr` cheat sheet](https://raw.githubusercontent.com/rstudio/cheatsheets/master/strings.pdf) is a particularly good regex reference specific to R.
+
+```{r extract_fat_content}
+# Note that str_extract extracts only the first match. We can use
+# str_extract_all to extract all matches
+stringr::str_extract(string = fat_content,     # string we want to extract from
+                     pattern = "\\d+(?=\\sg)") # the regex pattern
+```
+
+Let's break this expression down: `\\d` represents all digits `0-9`. Following this with `+` says that we want one or more digits. Finally, `(?=\\sg)` is a indicates that we want our selected string to be followed by a space (`\s`) and then a "g" (but that we don't want that included in our string). This makes sure that "100" is not included in our search (because it's followed by a "g", not " g"). It's a good idea to think about how much variation you expect there to be in the strings you are extracting from and to make your regular expressions as specific as possible within these constraints. Regular expressions that are too general risk picking up things that you don't want --- too specific, on the other hand, and you'll get empty selections for some strings.
+
+__Exercise__: Modify the following code to (a) select all of the flavors, (b) use a regular expression to select everything except the "Flavour: " bit at the beginning of the string. You should end up with a list containing each of the flavors as list elements.
+
+Hints: For (a), your CSS selector will be very similar to what we used to extract the fat content element (you only need to change one character). For (b), use the `stringr` cheat sheet to help you write an expression that selects all words (i.e., sequences of one or more letters) that are preceded by a space (so we don't select "Flavour:"). 
+
+```{r Ex3, eval = FALSE}
+brunost_html %>%
+  html_nodes(css = "CSS SELCTOR GOES HERE") %>%
+  html_text() %>%
+  stringr::str_extract_all(pattern = "REGEX GOES HERE")
+```
+
+__Solution__:
+
+[
+`brunost_html %>%`  
+  `html_nodes(css = ".summary-points li:nth-child(9) p") %>%`  
+  `html_text() %>%`  
+  `stringr::str_extract_all(pattern = "(?<=[:space:])\\w+")`  
+]{.spoiler}
+
+## Beyond brunost
+
+So far, we've learned most of the basic steps needed to extract data from a webpage. However, we're seldom interested in extracting data from only one webpage. If that were the case, it would probably be easier just to copy and paste. We need a tool we can use to automatically scrape information from multiple webpages. We need a function!
+
+```{r cheese_scraper}
+# Extract fat content from a cheese page
+get_fat_content <- function(cheese_html) {
+  cheese_html %>%
+    html_nodes(css = ".fa-sliders + p") %>%
+    html_text() %>%
+    stringr::str_extract(pattern = "\\d+") %>%
+    as.numeric()
+}
+
+# Extract countries of origin from a cheese page
+get_origin_countries <- function(cheese_html) {
+  cheese_html %>% 
+    html_nodes(css = ".fa-flag + p a") %>% 
+    html_text()
+}
+
+# Extract milk types from a cheese page
+get_milk_types <- function(cheese_html) {
+  cheese_html %>%
+  html_nodes(css = ".fa-flask + p a") %>%
+  html_text()
+}
+
+# Extract flavors from a cheese page
+get_flavors <- function(cheese_html) {
+  cheese_html %>%
+    html_nodes(css = ".fa-spoon + p") %>%
+    html_text() %>%
+    stringr::str_extract_all(pattern = "(?<=[:space:])\\w+") %>%
+    unlist()
+}
+
+cheese_scraper <- function(cheese_name) {
+  formatted_cheese_name <- cheese_name %>%
+    stringr::str_to_lower() %>%
+    stringr::str_replace_all(pattern = "[:space:]", "-") %>%
+    stringr::str_replace_all(pattern = "'", "")
+  
+  cheese_url <- paste0("https://www.cheese.com/", formatted_cheese_name)
+  cheese_html <- read_html(cheese_url)
+  
+  milk_types <- get_milk_types(cheese_html)
+  flavors <- get_flavors(cheese_html)
+  origin_countries <- get_origin_countries(cheese_html)
+  fat_content <- get_fat_content(cheese_html)
+  
+  list(
+    name = cheese_name,
+    origin_countries = origin_countries,
+    milk_types = milk_types,
+    flavors = flavors,
+    fat_content = fat_content
+  )
+}
+```
+
+```{r}
+# Get the names of all cheeses in the database
+# https://cheese.com/alphabetical/?per_page=20&i=a&page=1#top
+get_cheeses_per_letter <- function(letter) {
+  page_url <- paste0("https://cheese.com/alphabetical/?per_page=100&i=",
+                     letter,
+                     "&page=1")
+  page_html <- read_html(page_url)
+  page_num <- page_html %>%
+    html_nodes(css = "#id_page label") %>%
+    html_text(trim = TRUE) %>%
+    as.numeric() %>%
+    tail(1)
+}
+
+purrr::map(.x = c("brunost", "harvest"),
+        .f = cheese_scraper)
+```
+
