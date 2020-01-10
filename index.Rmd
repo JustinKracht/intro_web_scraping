@@ -55,7 +55,7 @@ pacman::p_load(purrr,
 ## Things to check before you begin
 
 - Will you be violating the terms of service?
-  - Check robots.txt (e.g., [www.wikipedia.org/robots.txt](http://www.wikipedia.org/robots.txt))
+  - Check robots.txt (e.g., [https://www.finn.no/robots.txt](https://www.finn.no/robots.txt))
   - Go slow and don't cause problems (see also [the `polite` package](https://github.com/dmi3kno/polite))
 - Is there an API that will let you access the data you need?
   - Some websites have APIs (application programming interfaces) that make data more efficiently available.
@@ -65,14 +65,13 @@ pacman::p_load(purrr,
 
 Once we've identified the URL of the page we'd like to scrape, the process of extracting data follows three general steps:
 
-1. Fetch the site's HTML source code
-2. From the HTML source code, identify and select the element(s) containing the data you want to extract
+1. Fetch the site's HTML source
+2. From the HTML source, identify and select the element(s) containing the data you want to extract
 3. From the element, extract and format the data you want
 
 Here's a simple example adapted from the `rvest` documentation:
 
 ```{r}
-library(rvest)
 # Fetch the html source code for the imbd page for The Lego Movie
 lego_movie <- read_html("http://www.imdb.com/title/tt1490017/")
 
@@ -183,9 +182,9 @@ That looks good except that we don't want the entire string, only the number of 
 
 > A regular expression, regex or regexp (sometimes called a rational expression) is a sequence of characters that define a search pattern. Usually such patterns are used by string searching algorithms for "find" or "find and replace" operations on strings, or for input validation.^[Wikipedia contributors. (2019, December 27). Regular expression. In Wikipedia, The Free Encyclopedia. Retrieved 14:35, December 27, 2019, from https://en.wikipedia.org/w/index.php?title=Regular_expression&oldid=932634946]
 
-Regular expressions, like CSS selectors, have a bit of a learning curve but are really not too bad once you get used to them. There are also many good resources to help you learn. [RegexOne](https://regexone.com/) has an interactive tutorial that will teach you most of what you'll ever need to know about regular expressions. You can hone your regex skills playing [regex crossword](https://regexcrossword.com/challenges/beginner/puzzles/1)! Another good resource is [regexr.com](https://regexr.com/), a website that lets you interactively build a regular expression. I use this regularly to test my regular expressions before I use them. It also has some handy reference resources.
+Regular expressions, like CSS selectors, have a bit of a learning curve but are really not too bad once you get used to them. There are also many good resources to help you learn. [RegexOne](https://regexone.com/) has an interactive tutorial that will teach you most of what you'll ever need to know about regular expressions. You can also hone your regex skills playing [regex crossword](https://regexcrossword.com/challenges/beginner/puzzles/1)! Another good resource is [regexr.com](https://regexr.com/), a website that lets you interactively build a regular expression. I use this regularly to test my regular expressions before I use them. It also has some handy reference resources.
 
-Our example is relatively straightforward; we want to extract the number that appears directly after the colon in "Fat content:". Therefore, we want our regular expressions to capture any digits that appear after (but do not include) the colon. We also need to be sure that we don't capture the "100" in "100g".
+Our example is relatively straightforward; we want to extract the number that appears directly after the colon in "Fat content:" and before the first "g" in "g/100g". Therefore, we want our regular expressions to capture any digits that appear after (but do not include) the colon. We also need to be sure that we don't capture the "100" in "100g".
 
 I like to use the `stringr` package for string manipulation. Incidentally, the second page of the [`stringr` cheat sheet](https://raw.githubusercontent.com/rstudio/cheatsheets/master/strings.pdf) is a particularly good regex reference specific to R.
 
@@ -196,7 +195,7 @@ stringr::str_extract(string = fat_content,     # string we want to extract from
                      pattern = "\\d+(?=\\sg)") # the regex pattern
 ```
 
-Let's break this expression down: `\\d` represents all digits `0-9`. Following this with `+` says that we want one or more digits. Finally, `(?=\\sg)` is a indicates that we want our selected string to be followed by a space (`\s`) and then a "g" (but that we don't want that included in our string). This makes sure that "100" is not included in our search (because it's followed by a "g", not " g"). It's a good idea to think about how much variation you expect there to be in the strings you are extracting from and to make your regular expressions as specific as possible within these constraints. Regular expressions that are too general risk picking up things that you don't want --- too specific, on the other hand, and you'll get empty selections for some strings.
+Let's break this expression down: `\\d` represents all digits `0-9`. Following this with `+` says that we want one or more digits. Finally, `(?=\\sg)` is a indicates that we want our selected string to be followed by a space (`\s`) and then a "g" (but that we don't want that included in our string). This makes sure that "100" is not included in our search (because it's followed by a "g", not " g"). It's a good idea to think about how much variation you expect there to be in the strings you are extracting from and to make your regular expressions as specific as possible within these constraints. Regular expressions that are too general risk picking up things that you don't want --- too specific, on the other hand, and you'll come up empty-handed when the strings aren't formatted in exactly the way you expect.
 
 __Exercise__: Modify the following code to (a) select all of the flavors, (b) use a regular expression to select everything except the "Flavour: " bit at the beginning of the string. You should end up with a list containing each of the flavors as list elements.
 
