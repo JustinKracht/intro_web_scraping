@@ -10,11 +10,7 @@ output: distill::distill_article
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, cache = FALSE)
-pacman::p_load(purrr,
-               tidyr,
-               rvest,
-               stringr)
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
 ```
 
 ```{css, echo=FALSE}
@@ -72,6 +68,15 @@ Once we've identified the URL of the page we'd like to scrape, the process of ex
 Here's a simple example adapted from the `rvest` documentation:
 
 ```{r}
+# Load the packages we'll need for this presentation
+# Note that I use pacman (a package manager for R) to load the required packges.
+# You can also load the packages using install.packages() and library() as usual
+# if you prefer.
+pacman::p_load(purrr,
+               tidyr,
+               rvest,
+               stringr)
+
 # Fetch the html source code for the imbd page for The Lego Movie
 lego_movie <- read_html("http://www.imdb.com/title/tt1490017/")
 
